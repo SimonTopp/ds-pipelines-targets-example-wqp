@@ -40,8 +40,8 @@ p3_targets_list <- list(
   tar_target(
     p3_wqp_param_cleaning_info,
     tibble(
-      parameter = c('conductivity', 'temperature'),
-      cleaning_fxn = c(clean_conductivity_data, clean_temperature_data))
+      parameter = c('sediment'),
+      cleaning_fxn = c(list()))
   ),
   
   # Group the WQP data by parameter group in preparation for parameter-specific
@@ -59,22 +59,22 @@ p3_targets_list <- list(
   # is a {targets} dependency, so changes to any of the parameter-specific 
   # cleaning functions will trigger a rebuild of only those branches that 
   # correspond to the group of data impacted by the change.
-  tar_target(
-    p3_wqp_data_aoi_clean_param,
-    {
-      # Decide which function to use
-      fxn_to_use <- p3_wqp_param_cleaning_info %>%
-        filter(parameter == unique(p3_wqp_data_aoi_clean_grp$parameter)) %>%
-        pull(cleaning_fxn) %>%
-        {.[[1]]}
-      
-      # If applicable, apply parameter-specific cleaning function
-      if(length(fxn_to_use) > 0){
-        do.call(fxn_to_use, list(wqp_data = p3_wqp_data_aoi_clean_grp))
-      } else {.}
-    },
-    map(p3_wqp_data_aoi_clean_grp)
-  ),
+  # tar_target(
+  #   p3_wqp_data_aoi_clean_param,
+  #   {
+  #     # Decide which function to use
+  #     fxn_to_use <- p3_wqp_param_cleaning_info %>%
+  #       filter(parameter == unique(p3_wqp_data_aoi_clean_grp$parameter)) %>%
+  #       pull(cleaning_fxn) %>%
+  #       {.[[1]]}
+  #     
+  #     # If applicable, apply parameter-specific cleaning function
+  #     if(length(fxn_to_use) > 0){
+  #       do.call(fxn_to_use, list(wqp_data = p3_wqp_data_aoi_clean_grp))
+  #     } else {.}
+  #   },
+  #   map(p3_wqp_data_aoi_clean_grp)
+  # ),
   
   # Summarize the number of records associated with each parameter,
   # characteristic name, and harmonized units. The harmonized dataset
@@ -82,7 +82,7 @@ p3_targets_list <- list(
   # different vector of column names in `grouping_cols`.
   tar_target(
     p3_wqp_records_summary_csv,
-    summarize_wqp_records(p3_wqp_data_aoi_clean_param, 
+    summarize_wqp_records(p3_wqp_data_aoi_clean, 
                           grouping_cols = c('parameter', 
                                             'CharacteristicName',
                                             'ResultMeasure.MeasureUnitCode'),
@@ -99,7 +99,7 @@ p3_targets_list <- list(
   tar_target(
     p3_wqp_data_aoi_clean_param_rds,{
       outfile <- "3_harmonize/out/harmonized_wqp_data.rds"
-      saveRDS(p3_wqp_data_aoi_clean_param, outfile)
+      saveRDS(p3_wqp_data_aoi_clean, outfile)
       outfile
     }, format = "file"
   )

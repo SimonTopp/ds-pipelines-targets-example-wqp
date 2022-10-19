@@ -1,5 +1,5 @@
 # characteristicNames: https://www.waterqualitydata.us/Codes/Characteristicname?mimeType=xml
-
+# 
 temperature:
 - "Temperature"
 - "Temperature, sample"
@@ -88,4 +88,13 @@ conductivity:
 - "Specific conductance"
 - "Specific Conductance, Calculated/Measured Ratio"
 - "Conductivity"
+
+sediment:
+- "Suspended sediment concentration (SSC)"
+- "Suspended Sediment Concentration (SSC)"
+- "Suspended Sediment Discharge"
+- "Total suspended solids"
+- "Total Suspended Particulate Matter"
+- "Total Suspended Sediment"
+- "Total suspended sediment"
 
