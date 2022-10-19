@@ -1,0 +1,120 @@
+---
+title: "04_Idaho_SSC_viz"
+output:
+  pdf_document: default
+  html_document: default
+date: "2022-10-19"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(sf)
+library(mapview)
+library(dataRetrieval)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Quick and dirty summary of WQP pull for SSC and TSS samples in Idaho
+
+Read in the outputs of the `targets` pipeline and look at some summary values
+
+```{r}
+ssc <- readRDS('3_harmonize/out/harmonized_wqp_data.rds') %>% 
+  select(siteID = MonitoringLocationIdentifier, 
+        date = ActivityStartDate,
+        time= ActivityStartTime.Time,
+        constituent = CharacteristicName,
+        original_value = ResultMeasureValue_original,
+        corrected_value = ResultMeasureValue,
+        units = ResultMeasure.MeasureUnitCode,
+        depth = ActivityDepthHeightMeasure.MeasureValue,
+        depth_units = ActivityDepthHeightMeasure.MeasureUnitCode,
+        depth_start = ActivityTopDepthHeightMeasure.MeasureValue,
+        depth_end = ActivityBottomDepthHeightMeasure.MeasureValue,
+        depth_start_end_units =ActivityBottomDepthHeightMeasure.MeasureUnitCode,
+        analytical_methon = ResultAnalyticalMethod.MethodName,
+        flag_missing_result,
+        flag_duplicated_row
+        )
+
+
+ssc %>% group_by(constituent) %>%
+  summarise(count = n())
+```
+## Pull the site info from WQP and join to the parameter pull
+
+```{r}
+ssc_sites <- whatWQPsites(statecode="US:16",
+                          characteristicName = c("Suspended Sediment Concentration (SSC)",
+                                                 "Suspended Sediment Discharge",
+                                                 "Total suspended solids")) %>%
+  filter(MonitoringLocationIdentifier %in% ssc$siteID) %>%
+  select(Org = OrganizationFormalName, 
+         siteID =MonitoringLocationIdentifier, 
+         siteName =MonitoringLocationName, 
+         HUCEight=HUCEightDigitCode,  
+         lat = LatitudeMeasure,long = LongitudeMeasure, 
+         datum = HorizontalCoordinateReferenceSystemDatumName) 
+  
+ssc_sites %>% group_by(datum) %>%
+  summarise(count = n())
+
+munge_datums <- function(data, datums){
+  nad27 <- data %>% filter(datum == 'NAD27') %>%
+    st_as_sf(coords = c('long','lat'), crs = 4267) %>%
+    st_transform(4326)
+  
+  nad83 <- data %>% filter(datum %in% c('NAD83','UNKWN')) %>%
+    st_as_sf(coords = c('long','lat'), crs = 4269) %>%
+    st_transform(4326)
+    
+  wgs84 <- data %>% filter(datum =='WGS84') %>%
+    st_as_sf(coords = c('long','lat'), crs = 4326)
+  
+  return(rbind(nad27,nad83,wgs84))
+}
+
+sites_sf <- munge_datums(ssc_sites)
+
+ssc_sf <- ssc %>%
+  filter(flag_duplicated_row == FALSE) %>%
+  group_by(siteID,constituent) %>%
+  summarise(count = n()) %>%
+  left_join(sites_sf) %>%
+  st_as_sf()
+
+idaho <- st_as_sf(maps::map('state',plot=F,fill = T)) %>%
+  filter(ID == 'idaho') %>%
+  st_transform(4326)
+```
+
+## Plot up samples through space and time
+
+```{r}
+ggplot(ssc_sf) +
+  geom_sf(data=idaho) +
+  geom_sf(aes(color = count)) + 
+  scale_color_viridis_c(trans='log10') +
+  ggthemes::theme_map() +
+  theme(legend.position = 'right') +
+  ggtitle('SSC Samples in Idaho since 1984') +
+  facet_wrap(~constituent, labeller = labeller(constituent= label_wrap_gen(10)))
+
+ssc_annual <- ssc %>%
+  filter(flag_duplicated_row==FALSE) %>%
+  mutate(year = lubridate::year(date)) %>%
+  group_by(year, constituent) %>%
+  summarise(count = n())
+
+ggplot(ssc_annual) + 
+  geom_line(aes(x=year, y = count,color = constituent)) +
+  theme_bw() + 
+  theme(legend.position = 'bottom',
+        legend.direction = 'vertical',
+        legend.title = element_blank())
+
+```
